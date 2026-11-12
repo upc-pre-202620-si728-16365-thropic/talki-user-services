@@ -1,7 +1,10 @@
 package com.thropic.talki.identity.interfaces.rest;
 
+import com.thropic.talki.identity.domain.exception.ConsentNotFoundException;
+import com.thropic.talki.identity.domain.exception.DuplicateConsentException;
 import com.thropic.talki.identity.domain.exception.DuplicateEmailException;
 import com.thropic.talki.identity.domain.exception.InvalidAcademicSegmentException;
+import com.thropic.talki.identity.domain.exception.InvalidConsentPolicyException;
 import com.thropic.talki.identity.domain.exception.InvalidCredentialsException;
 import com.thropic.talki.identity.domain.exception.InvalidPasswordException;
 import com.thropic.talki.identity.domain.exception.TooManyLoginAttemptsException;
@@ -37,6 +40,23 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(InvalidAcademicSegmentException.class)
     public ResponseEntity<Map<String, Object>> handleInvalidAcademicSegment(InvalidAcademicSegmentException e) {
+        return build(HttpStatus.BAD_REQUEST, e.getMessage());
+    }
+
+    // ---------- US33: consentimiento de voz ----------
+
+    @ExceptionHandler(DuplicateConsentException.class)
+    public ResponseEntity<Map<String, Object>> handleDuplicateConsent(DuplicateConsentException e) {
+        return build(HttpStatus.CONFLICT, e.getMessage());
+    }
+
+    @ExceptionHandler(ConsentNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleConsentNotFound(ConsentNotFoundException e) {
+        return build(HttpStatus.NOT_FOUND, e.getMessage());
+    }
+
+    @ExceptionHandler(InvalidConsentPolicyException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidConsentPolicy(InvalidConsentPolicyException e) {
         return build(HttpStatus.BAD_REQUEST, e.getMessage());
     }
 
