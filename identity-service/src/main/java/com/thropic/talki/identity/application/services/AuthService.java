@@ -2,6 +2,8 @@ package com.thropic.talki.identity.application.services;
 
 import com.thropic.talki.identity.application.events.UserRegisteredEventPublisher;
 import com.thropic.talki.identity.domain.event.UserRegisteredEvent;
+import com.thropic.talki.identity.domain.exception.DuplicateEmailException;
+import com.thropic.talki.identity.domain.exception.InvalidCredentialsException;
 import com.thropic.talki.identity.domain.model.AppUser;
 import com.thropic.talki.identity.infrastructure.persistence.AppUserRepository;
 import com.thropic.talki.identity.infrastructure.security.JwtTokenProvider;
@@ -11,7 +13,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class AuthService {
 
-    /** Cuenta fija de demostración (informe AV4 / Sprint 3). */
+    /** Cuenta fija de demostración (informe AV4 / Sprint 3). Se elimina en la tarea de privacidad. */
     private static final String DEMO_EMAIL = "alejo.demo.av4@upc.edu.pe";
 
     private final AppUserRepository userRepository;
@@ -31,10 +33,10 @@ public class AuthService {
 
     public AppUser register(String email, String rawPassword, String username, String academicSegment) {
         if (userRepository.existsByEmail(email)) {
-            // Permite re-sembrar la cuenta demo del informe sin tocar la BD a mano.
+            // ponytail: backdoor demo temporal (informe AV4); se elimina con la siembra por perfil dev.
             if (DEMO_EMAIL.equalsIgnoreCase(email)) {
                 AppUser demo = userRepository.findByEmail(email)
-                        .orElseThrow(() -> new IllegalArgumentException("User not found: " + email));
+                        .orElseThrow(InvalidCredentialsException::new);
                 demo.setPasswordHash(passwordEncoder.encode(rawPassword));
                 if (username != null && !username.isBlank()) {
                     demo.setUsername(username);
@@ -44,7 +46,7 @@ public class AuthService {
                 }
                 return userRepository.save(demo);
             }
-            throw new IllegalArgumentException("Email already registered: " + email);
+            throw new DuplicateEmailException();
         }
         String hash = passwordEncoder.encode(rawPassword);
         AppUser user = new AppUser(email, hash, username, academicSegment);
@@ -62,10 +64,11 @@ public class AuthService {
     }
 
     public String login(String email, String rawPassword) {
+        // Mensaje idéntico en ambas ramas: no se revela si falló el email o la contraseña.
         AppUser user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("User not found: " + email));
+                .orElseThrow(InvalidCredentialsException::new);
         if (!passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
-            throw new IllegalArgumentException("Invalid credentials");
+            throw new InvalidCredentialsException();
         }
         return jwtTokenProvider.generateToken(email, user.getId().toString());
     }

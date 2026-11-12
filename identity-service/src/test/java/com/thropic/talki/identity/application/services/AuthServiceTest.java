@@ -66,13 +66,13 @@ class AuthServiceTest {
     }
 
     @Test
-    void register_whenEmailAlreadyExists_shouldThrowException() {
+    void register_whenEmailAlreadyExists_shouldThrowConflict409() {
         when(userRepository.existsByEmail("manuel@upc.edu.pe")).thenReturn(true);
 
         assertThatThrownBy(() ->
                 authService.register("manuel@upc.edu.pe", "password123", "ManuelTumi", "ciclos_6_10")
-        ).isInstanceOf(IllegalArgumentException.class)
-         .hasMessageContaining("Email already registered");
+        ).isInstanceOf(com.thropic.talki.identity.domain.exception.DuplicateEmailException.class)
+         .hasMessageContaining("ya está registrado");
 
         verify(userRepository, never()).save(any());
     }
@@ -89,22 +89,22 @@ class AuthServiceTest {
     }
 
     @Test
-    void login_whenUserNotFound_shouldThrowException() {
+    void login_whenUserNotFound_shouldGiveSameGenericMessageAsWrongPassword() {
         when(userRepository.findByEmail("noexiste@upc.edu.pe")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> authService.login("noexiste@upc.edu.pe", "password123"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("User not found");
+                .isInstanceOf(com.thropic.talki.identity.domain.exception.InvalidCredentialsException.class)
+                .hasMessage("Credenciales inválidas");
     }
 
     @Test
-    void login_whenPasswordIsWrong_shouldThrowException() {
+    void login_whenPasswordIsWrong_shouldGiveSameGenericMessageAsUnknownUser() {
         when(userRepository.findByEmail("manuel@upc.edu.pe")).thenReturn(Optional.of(sampleUser));
         when(passwordEncoder.matches("wrong_password", "hashed_password")).thenReturn(false);
 
         assertThatThrownBy(() -> authService.login("manuel@upc.edu.pe", "wrong_password"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Invalid credentials");
+                .isInstanceOf(com.thropic.talki.identity.domain.exception.InvalidCredentialsException.class)
+                .hasMessage("Credenciales inválidas");
     }
 
     @Test
@@ -119,6 +119,15 @@ class AuthServiceTest {
                 "alejo.demo.av4@upc.edu.pe", "Demo1234!", "alejo_demo", "ciclos_6_10");
 
         assertThat(result.getPasswordHash()).isEqualTo("new_hash");
+        verify(userRegisteredEventPublisher, never()).publish(any());
+    }
+
+    @Test
+    void register_whenDuplicateEmailIsNotDemo_shouldThrowDuplicateEmailException() {
+        when(userRepository.existsByEmail("otro@upc.edu.pe")).thenReturn(true);
+
+        assertThatThrownBy(() -> authService.register("otro@upc.edu.pe", "password123", "X", "ciclos_6_10"))
+                .isInstanceOf(com.thropic.talki.identity.domain.exception.DuplicateEmailException.class);
         verify(userRegisteredEventPublisher, never()).publish(any());
     }
 
