@@ -33,8 +33,9 @@ public class AuthService {
 
     /**
      * Regla de contraseña: mínimo 8 caracteres, al menos una letra y un número.
+     * Package: la reutiliza AccountService en el reset con el mismo mensaje de error.
      */
-    private static final Pattern PASSWORD_RULE = Pattern.compile("^(?=.*[A-Za-z])(?=.*\\d).{8,}$");
+    static final Pattern PASSWORD_RULE = Pattern.compile("^(?=.*[A-Za-z])(?=.*\\d).{8,}$");
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
