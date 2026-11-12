@@ -30,15 +30,18 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final UserRegisteredEventPublisher userRegisteredEventPublisher;
+    private final LoginAttemptService loginAttemptService;
 
     public AuthService(AppUserRepository userRepository,
                        PasswordEncoder passwordEncoder,
                        JwtTokenProvider jwtTokenProvider,
-                       UserRegisteredEventPublisher userRegisteredEventPublisher) {
+                       UserRegisteredEventPublisher userRegisteredEventPublisher,
+                       LoginAttemptService loginAttemptService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.userRegisteredEventPublisher = userRegisteredEventPublisher;
+        this.loginAttemptService = loginAttemptService;
     }
 
     public AppUser register(String email, String rawPassword, String username, String academicSegment) {
@@ -80,12 +83,15 @@ public class AuthService {
     }
 
     public String login(String email, String rawPassword) {
+        loginAttemptService.assertAllowed(email);
         // Mensaje idéntico en ambas ramas: no se revela si falló el email o la contraseña.
         AppUser user = userRepository.findByEmail(email)
                 .orElseThrow(InvalidCredentialsException::new);
         if (!passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
+            loginAttemptService.recordFailure(email);
             throw new InvalidCredentialsException();
         }
+        loginAttemptService.reset(email);
         return jwtTokenProvider.generateToken(email, user.getId().toString());
     }
 }

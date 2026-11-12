@@ -33,6 +33,9 @@ class AuthServiceTest {
     @Mock
     private com.thropic.talki.identity.application.events.UserRegisteredEventPublisher userRegisteredEventPublisher;
 
+    @Mock
+    private com.thropic.talki.identity.application.services.LoginAttemptService loginAttemptService;
+
     @InjectMocks
     private AuthService authService;
 
