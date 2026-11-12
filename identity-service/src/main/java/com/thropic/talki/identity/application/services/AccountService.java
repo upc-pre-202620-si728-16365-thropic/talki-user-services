@@ -88,6 +88,7 @@ public class AccountService {
     /** Reenvía la verificación del usuario autenticado: 3 por email en 15 minutos. */
     public void resendVerification(String email) {
         assertAllowed(resendLimiter, email);
+        resendLimiter.recordFailure(email); // todo reenvío cuenta dentro de la ventana
         AppUser user = userRepository.findByEmail(email)
                 .orElseThrow(InvalidCredentialsException::new);
         issueEmailVerification(user);
