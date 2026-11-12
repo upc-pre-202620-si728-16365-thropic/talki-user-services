@@ -1,0 +1,7 @@
+# Configuración exclusiva del perfil dev (docker-compose.dev.yml / desarrollo local).
+# La consola H2 solo existe en dev; en los demás perfiles queda deshabilitada (SB1-07-D).
+spring:
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
