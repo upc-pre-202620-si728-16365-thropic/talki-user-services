@@ -1,6 +1,8 @@
 package com.thropic.talki.identity.application.services;
 
+import com.thropic.talki.identity.application.events.ConsentEventPublisher;
 import com.thropic.talki.identity.application.ports.VoiceConsentRepository;
+import com.thropic.talki.identity.domain.event.VoiceConsentEvent;
 import com.thropic.talki.identity.domain.exception.ConsentNotFoundException;
 import com.thropic.talki.identity.domain.exception.DuplicateConsentException;
 import com.thropic.talki.identity.domain.exception.InvalidConsentPolicyException;
@@ -22,9 +24,12 @@ import java.util.UUID;
 public class ConsentCommandService {
 
     private final VoiceConsentRepository voiceConsentRepository;
+    private final ConsentEventPublisher consentEventPublisher;
 
-    public ConsentCommandService(VoiceConsentRepository voiceConsentRepository) {
+    public ConsentCommandService(VoiceConsentRepository voiceConsentRepository,
+                                 ConsentEventPublisher consentEventPublisher) {
         this.voiceConsentRepository = voiceConsentRepository;
+        this.consentEventPublisher = consentEventPublisher;
     }
 
     public VoiceConsent accept(Long userId, String policyVersion) {
@@ -37,7 +42,11 @@ public class ConsentCommandService {
             throw new DuplicateConsentException();
         }
         // Versión nueva, o re-aceptación sobre una retirada u otra versión: fila nueva.
-        return voiceConsentRepository.save(new VoiceConsent(userId, policyVersion));
+        VoiceConsent consent = voiceConsentRepository.save(new VoiceConsent(userId, policyVersion));
+        consentEventPublisher.publish(new VoiceConsentEvent(VoiceConsentEvent.TYPE_REGISTERED,
+                new VoiceConsentEvent.VoiceConsentData(userId, consent.getPolicyVersion(),
+                        consent.getScope(), consent.getId().toString())));
+        return consent;
     }
 
     public VoiceConsent withdraw(Long userId, String consentId) {
@@ -50,7 +59,10 @@ public class ConsentCommandService {
         consent.withdraw(now);
         if (!alreadyWithdrawn) {
             // Solo la primera marca persiste y notifica; repetir es un no-op.
-            return voiceConsentRepository.save(consent);
+            voiceConsentRepository.save(consent);
+            consentEventPublisher.publish(new VoiceConsentEvent(VoiceConsentEvent.TYPE_WITHDRAWN,
+                    new VoiceConsentEvent.VoiceConsentData(userId, consent.getPolicyVersion(),
+                            consent.getScope(), consent.getId().toString())));
         }
         return consent;
     }
