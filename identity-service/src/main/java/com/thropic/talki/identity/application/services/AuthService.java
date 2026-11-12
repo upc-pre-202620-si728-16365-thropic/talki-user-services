@@ -190,4 +190,9 @@ public class AuthService {
         return userRepository.findByEmail(email)
                 .orElseThrow(InvalidCredentialsException::new);
     }
+
+    /** US33: existencia de usuario para la compuerta interna (404 si no existe). */
+    public boolean existsById(Long id) {
+        return userRepository.existsById(id);
+    }
 }

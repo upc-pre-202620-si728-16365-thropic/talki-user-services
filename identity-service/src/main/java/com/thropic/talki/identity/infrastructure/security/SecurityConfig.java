@@ -22,7 +22,9 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/v1/auth/**", "/h2-console/**", "/actuator/**",
+                // /internal/** no lleva JWT: se autentica por X-Internal-Api-Key
+                // dentro del controlador (compuerta US33 entre servicios).
+                .requestMatchers("/v1/auth/**", "/internal/**", "/h2-console/**", "/actuator/**",
                         "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 .anyRequest().authenticated()
             )
