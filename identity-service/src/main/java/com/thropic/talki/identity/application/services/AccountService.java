@@ -5,6 +5,7 @@ import com.thropic.talki.identity.application.ports.EmailVerificationTokenReposi
 import com.thropic.talki.identity.application.ports.PasswordResetTokenRepository;
 import com.thropic.talki.identity.application.ports.RefreshTokenRepository;
 import com.thropic.talki.identity.domain.event.UserAccountEvent;
+import com.thropic.talki.identity.domain.exception.InvalidAcademicSegmentException;
 import com.thropic.talki.identity.domain.exception.InvalidCredentialsException;
 import com.thropic.talki.identity.domain.exception.InvalidPasswordException;
 import com.thropic.talki.identity.domain.exception.InvalidTokenException;
@@ -132,6 +133,35 @@ public class AccountService {
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
         refreshTokenRepository.revokeAllActiveByUserId(user.getId());
+    }
+
+    /**
+     * PATCH de perfil: username y academicSegment opcionales. El email NO es
+     * editable en este slice (si llega en el body se ignora). Publica el evento
+     * con solo username/segmento nuevos (PROPUESTA) si hubo algún cambio.
+     */
+    public AppUser updateProfile(Long userId, String username, String academicSegment) {
+        if (academicSegment != null && !AuthService.VALID_SEGMENTS.contains(academicSegment)) {
+            throw new InvalidAcademicSegmentException();
+        }
+        AppUser user = userRepository.findById(userId)
+                .orElseThrow(InvalidCredentialsException::new);
+        boolean changed = false;
+        if (username != null && !username.isBlank()) {
+            user.setUsername(username.trim());
+            changed = true;
+        }
+        if (academicSegment != null && !academicSegment.isBlank()) {
+            user.setAcademicSegment(academicSegment);
+            changed = true;
+        }
+        if (changed) {
+            userRepository.save(user);
+            accountEventPublisher.publish(new UserAccountEvent(
+                    UserAccountEvent.TYPE_PROFILE_UPDATED,
+                    userId, user.getEmail(), null, user.getUsername(), user.getAcademicSegment()));
+        }
+        return user;
     }
 
     private EmailVerificationToken findUsable(EmailVerificationToken token) {

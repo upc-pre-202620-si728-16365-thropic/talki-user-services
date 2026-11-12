@@ -6,7 +6,9 @@ import com.thropic.talki.identity.domain.model.AppUser;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -33,6 +35,19 @@ public class UserController {
     public ResponseEntity<Void> resendVerification(Authentication authentication) {
         accountService.resendVerification(authentication.getName());
         return ResponseEntity.accepted().build();
+    }
+
+    /**
+     * Edita perfil: {username, academicSegment} opcionales. El email no es
+     * editable en este slice: si llega en el body se ignora. Mismo shape que GET.
+     */
+    @PatchMapping("/v1/users/me")
+    public ResponseEntity<Map<String, Object>> patchMe(Authentication authentication,
+                                                       @RequestBody Map<String, String> body) {
+        AppUser user = authService.getByEmail(authentication.getName());
+        AppUser updated = accountService.updateProfile(
+                user.getId(), body.get("username"), body.get("academicSegment"));
+        return ResponseEntity.ok(toJson(updated));
     }
 
     /** El GET y el PATCH de perfil devuelven el mismo shape (incluye emailVerified). */

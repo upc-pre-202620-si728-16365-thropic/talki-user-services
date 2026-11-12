@@ -39,7 +39,8 @@ public class AuthService {
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
-    private static final Set<String> VALID_SEGMENTS = Set.of("ciclos_1_5", "ciclos_6_10");
+    /** Catálogo de segmentos académicos. Package: lo reutiliza AccountService en PATCH. */
+    static final Set<String> VALID_SEGMENTS = Set.of("ciclos_1_5", "ciclos_6_10");
 
     private final AppUserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
