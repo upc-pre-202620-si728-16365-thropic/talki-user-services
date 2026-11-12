@@ -24,7 +24,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Flujo HTTP real (filtro de seguridad + ControllerAdvice) contra H2 en memoria.
  */
 @SpringBootTest(properties = {
-        "jwt.secret=talki-test-jwt-secret-must-be-at-least-256-bits-long-and-this-is-it-yes"
+        "jwt.secret=talki-test-jwt-secret-must-be-at-least-256-bits-long-and-this-is-it-yes",
+        "INTERNAL_API_KEY=test-internal-key"
 })
 @AutoConfigureMockMvc
 class AuthFlowIntegrationTest {
