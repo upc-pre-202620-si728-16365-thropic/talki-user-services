@@ -25,6 +25,10 @@ public class AppUser {
     @Enumerated(EnumType.STRING)
     private UserRole role = UserRole.STUDENT;
 
+    /** False al registrar; true al consumir el token de verificación de correo. */
+    @Column(nullable = false)
+    private boolean emailVerified = false;
+
     public AppUser() {}
 
     public AppUser(String email, String passwordHash, String username, String academicSegment) {
@@ -45,4 +49,6 @@ public class AppUser {
     public void setAcademicSegment(String a) { this.academicSegment = a; }
     public UserRole getRole() { return role; }
     public void setRole(UserRole r) { this.role = r; }
+    public boolean isEmailVerified() { return emailVerified; }
+    public void setEmailVerified(boolean v) { this.emailVerified = v; }
 }

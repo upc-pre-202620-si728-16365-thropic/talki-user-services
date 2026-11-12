@@ -30,12 +30,15 @@ public class DevSeed {
             if (userRepository.existsByEmail(DEMO_EMAIL)) {
                 return; // idempotente: si ya existe, no se toca
             }
-            userRepository.save(new AppUser(
+            AppUser demo = new AppUser(
                     DEMO_EMAIL,
                     passwordEncoder.encode(DEMO_PASSWORD),
                     "alejo_demo",
                     "ciclos_6_10"
-            ));
+            );
+            // La cuenta demo del informe nace verificada (no recibe flujo de verificación).
+            demo.setEmailVerified(true);
+            userRepository.save(demo);
             log.info("[identity-service] Cuenta demo sembrada para perfil dev — userId={}",
                     userRepository.findByEmail(DEMO_EMAIL).map(AppUser::getId).orElse(null));
         };
