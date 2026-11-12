@@ -20,6 +20,8 @@ services:
       SPRING_PROFILES_ACTIVE: dev
       # Sin fallback (SB1-07-D): define JWT_SECRET en .env (ver .env.example).
       JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en el archivo .env}
+      # Sin fallback (US33): compuerta interna /internal para Sessions/LiveCoach.
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?Define INTERNAL_API_KEY en el archivo .env}
       JWT_ACCESS_TTL_MINUTES: ${JWT_ACCESS_TTL_MINUTES:-15}
       REFRESH_TTL_DAYS: ${REFRESH_TTL_DAYS:-7}
       RABBITMQ_HOST: rabbitmq
