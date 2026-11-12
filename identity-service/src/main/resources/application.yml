@@ -11,10 +11,6 @@ spring:
     hibernate:
       ddl-auto: create-drop
     show-sql: false
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
@@ -23,8 +19,14 @@ spring:
     virtual-host: ${RABBITMQ_VHOST:/}
 
 jwt:
-  secret: ${JWT_SECRET:talki-secret-key-for-demo-purposes-only-32chars}
-  expiration-ms: 86400000
+  # Sin fallback (SB1-07-D): si falta JWT_SECRET el servicio falla al arrancar.
+  secret: ${JWT_SECRET}
+
+internal:
+  # Sin fallback (US33): clave de la compuerta /internal; si falta, falla al arrancar.
+  api-key: ${INTERNAL_API_KEY}
+  access-ttl-minutes: ${JWT_ACCESS_TTL_MINUTES:15}
+  refresh-ttl-days: ${REFRESH_TTL_DAYS:7}
 
 springdoc:
   api-docs:

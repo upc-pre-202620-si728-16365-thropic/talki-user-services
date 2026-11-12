@@ -34,8 +34,35 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<Map<String, String>> login(@RequestBody Map<String, String> body) {
-        String token = authService.login(body.get("email"), body.get("password"));
-        return ResponseEntity.ok(Map.of("token", token, "type", "Bearer"));
+    public ResponseEntity<Map<String, Object>> login(@RequestBody Map<String, String> body) {
+        AuthService.LoginResult result = authService.login(body.get("email"), body.get("password"));
+        return ResponseEntity.ok(tokens(result));
+    }
+
+    /** US28: rota el refresh token y devuelve un nuevo par de tokens. */
+    @PostMapping("/refresh")
+    public ResponseEntity<Map<String, Object>> refresh(@RequestBody Map<String, String> body) {
+        AuthService.LoginResult result = authService.refresh(body.get("refreshToken"));
+        return ResponseEntity.ok(tokens(result));
+    }
+
+    /** US28: revoca el refresh token y deniega el access token actual. Idempotente. */
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@RequestBody Map<String, String> body,
+                                       @RequestHeader(value = "Authorization", required = false) String authorization) {
+        String accessToken = null;
+        if (authorization != null && authorization.startsWith("Bearer ")) {
+            accessToken = authorization.substring(7);
+        }
+        authService.logout(body.get("refreshToken"), accessToken);
+        return ResponseEntity.noContent().build();
+    }
+
+    private Map<String, Object> tokens(AuthService.LoginResult result) {
+        return Map.of(
+                "accessToken", result.accessToken(),
+                "refreshToken", result.refreshToken(),
+                "tokenType", "Bearer"
+        );
     }
 }

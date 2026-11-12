@@ -31,7 +31,7 @@ public class RabbitUserRegisteredPublisher implements UserRegisteredEventPublish
                 RabbitMQConfig.USER_REGISTERED_KEY,
                 event
         );
-        log.info("[identity-service] Published user.registered — userId={} email={}",
-                event.getUserId(), event.getEmail());
+        // No se loguea el email del evento (privacidad, SB1-07-D).
+        log.info("[identity-service] Published user.registered — userId={}", event.getUserId());
     }
 }
