@@ -1,32 +1,49 @@
 package com.thropic.talki.identity.interfaces.rest;
 
+import com.thropic.talki.identity.application.services.AccountService;
 import com.thropic.talki.identity.application.services.AuthService;
 import com.thropic.talki.identity.domain.model.AppUser;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** US23: datos del usuario autenticado vía JWT. */
+/** US23: datos del usuario autenticado vía JWT + flujos del lifecycle. */
 @org.springframework.web.bind.annotation.RestController
 public class UserController {
 
     private final AuthService authService;
+    private final AccountService accountService;
 
-    public UserController(AuthService authService) {
+    public UserController(AuthService authService, AccountService accountService) {
         this.authService = authService;
+        this.accountService = accountService;
     }
 
     @GetMapping("/v1/users/me")
     public ResponseEntity<Map<String, Object>> me(Authentication authentication) {
-        AppUser user = authService.getByEmail(authentication.getName());
-        return ResponseEntity.ok(Map.of(
-                "userId", user.getId(),
-                "email", user.getEmail(),
-                "username", user.getUsername(),
-                "academicSegment", user.getAcademicSegment(),
-                "role", user.getRole().name()
-        ));
+        return ResponseEntity.ok(toJson(authService.getByEmail(authentication.getName())));
+    }
+
+    /** Reenvía el token de verificación del usuario autenticado (3 por email / 15 min). */
+    @PostMapping("/v1/users/me/resend-verification")
+    public ResponseEntity<Void> resendVerification(Authentication authentication) {
+        accountService.resendVerification(authentication.getName());
+        return ResponseEntity.accepted().build();
+    }
+
+    /** El GET y el PATCH de perfil devuelven el mismo shape (incluye emailVerified). */
+    static Map<String, Object> toJson(AppUser user) {
+        Map<String, Object> json = new LinkedHashMap<>();
+        json.put("userId", user.getId());
+        json.put("email", user.getEmail());
+        json.put("username", user.getUsername());
+        json.put("academicSegment", user.getAcademicSegment());
+        json.put("role", user.getRole().name());
+        json.put("emailVerified", user.isEmailVerified());
+        return json;
     }
 }

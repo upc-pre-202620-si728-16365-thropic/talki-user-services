@@ -1,5 +1,6 @@
 package com.thropic.talki.identity.interfaces.rest;
 
+import com.thropic.talki.identity.application.services.AccountService;
 import com.thropic.talki.identity.application.services.AuthService;
 import com.thropic.talki.identity.domain.model.AppUser;
 import org.springframework.http.ResponseEntity;
@@ -12,9 +13,11 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final AccountService accountService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, AccountService accountService) {
         this.authService = authService;
+        this.accountService = accountService;
     }
 
     @PostMapping("/register")
@@ -56,6 +59,13 @@ public class AuthController {
         }
         authService.logout(body.get("refreshToken"), accessToken);
         return ResponseEntity.noContent().build();
+    }
+
+    /** Verificación de correo con token de un solo uso (público: cubierto por /v1/auth/**). */
+    @PostMapping("/verify-email")
+    public ResponseEntity<Map<String, Object>> verifyEmail(@RequestBody Map<String, String> body) {
+        accountService.verifyEmail(body.get("token"));
+        return ResponseEntity.ok(Map.of("emailVerified", true));
     }
 
     private Map<String, Object> tokens(AuthService.LoginResult result) {

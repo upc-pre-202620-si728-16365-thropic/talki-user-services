@@ -2,6 +2,7 @@ package com.thropic.talki.identity.infrastructure.messaging.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.thropic.talki.identity.domain.event.UserAccountEvent;
 import com.thropic.talki.identity.domain.event.VoiceConsentEvent;
 import org.springframework.amqp.core.ExchangeBuilder;
 import org.springframework.amqp.core.TopicExchange;
@@ -25,6 +26,11 @@ public class RabbitMQConfig {
     // Routing keys PROPUESTAS de US33 (pendientes de ratificación en el informe).
     public static final String VOICE_CONSENT_REGISTERED_KEY = VoiceConsentEvent.TYPE_REGISTERED;
     public static final String VOICE_CONSENT_WITHDRAWN_KEY  = VoiceConsentEvent.TYPE_WITHDRAWN;
+
+    // Routing keys PROPUESTAS del ciclo de vida de la cuenta (pendientes de ratificación).
+    public static final String EMAIL_VERIFICATION_REQUESTED_KEY = UserAccountEvent.TYPE_EMAIL_VERIFICATION_REQUESTED;
+    public static final String PASSWORD_RESET_REQUESTED_KEY     = UserAccountEvent.TYPE_PASSWORD_RESET_REQUESTED;
+    public static final String PROFILE_UPDATED_KEY              = UserAccountEvent.TYPE_PROFILE_UPDATED;
 
     @Bean
     public TopicExchange talkiEventsExchange() {
