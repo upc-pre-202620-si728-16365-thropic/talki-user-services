@@ -135,17 +135,14 @@ class AuthServiceTest {
     }
 
     @Test
-    void register_whenDemoEmailAlreadyExists_shouldResetPassword() {
-        AppUser demo = new AppUser("alejo.demo.av4@upc.edu.pe", "old_hash", "alejo_demo", "ciclos_6_10");
+    void register_whenDuplicateEmailEvenForDemoSeed_shouldThrowDuplicateEmailException() {
+        // El backdoor DEMO_EMAIL fue eliminado (SB1-07-D): ningún email escapa al 409.
         when(userRepository.existsByEmail("alejo.demo.av4@upc.edu.pe")).thenReturn(true);
-        when(userRepository.findByEmail("alejo.demo.av4@upc.edu.pe")).thenReturn(Optional.of(demo));
-        when(passwordEncoder.encode("Demo1234!")).thenReturn("new_hash");
-        when(userRepository.save(demo)).thenReturn(demo);
 
-        AppUser result = authService.register(
-                "alejo.demo.av4@upc.edu.pe", "Demo1234!", "alejo_demo", "ciclos_6_10");
-
-        assertThat(result.getPasswordHash()).isEqualTo("new_hash");
+        assertThatThrownBy(() -> authService.register(
+                "alejo.demo.av4@upc.edu.pe", "Demo1234!", "alejo_demo", "ciclos_6_10"))
+                .isInstanceOf(com.thropic.talki.identity.domain.exception.DuplicateEmailException.class);
+        verify(userRepository, never()).save(any());
         verify(userRegisteredEventPublisher, never()).publish(any());
     }
 

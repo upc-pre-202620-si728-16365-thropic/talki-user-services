@@ -40,9 +40,6 @@ public class AuthService {
 
     private static final Set<String> VALID_SEGMENTS = Set.of("ciclos_1_5", "ciclos_6_10");
 
-    /** Cuenta fija de demostración (informe AV4 / Sprint 3). Se elimina en la tarea de privacidad. */
-    private static final String DEMO_EMAIL = "alejo.demo.av4@upc.edu.pe";
-
     private final AppUserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
@@ -81,19 +78,6 @@ public class AuthService {
             throw new InvalidAcademicSegmentException();
         }
         if (userRepository.existsByEmail(email)) {
-            // ponytail: backdoor demo temporal (informe AV4); se elimina con la siembra por perfil dev.
-            if (DEMO_EMAIL.equalsIgnoreCase(email)) {
-                AppUser demo = userRepository.findByEmail(email)
-                        .orElseThrow(InvalidCredentialsException::new);
-                demo.setPasswordHash(passwordEncoder.encode(rawPassword));
-                if (username != null && !username.isBlank()) {
-                    demo.setUsername(username);
-                }
-                if (academicSegment != null && !academicSegment.isBlank()) {
-                    demo.setAcademicSegment(academicSegment);
-                }
-                return userRepository.save(demo);
-            }
             throw new DuplicateEmailException();
         }
         String hash = passwordEncoder.encode(rawPassword);
