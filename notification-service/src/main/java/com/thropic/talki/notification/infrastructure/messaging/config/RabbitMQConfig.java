@@ -21,6 +21,9 @@ public class RabbitMQConfig {
     public static final String QUEUE_ACHIEVE   = "notification.achievement-ready";
     public static final String ROUTING_ACHIEVE = "achievement.unlocked";
 
+    public static final String QUEUE_SCORE_DLQ     = QUEUE_SCORE + ".dlq";
+    public static final String QUEUE_ACHIEVE_DLQ   = QUEUE_ACHIEVE + ".dlq";
+
     @Bean
     public TopicExchange talkiEventsExchange() {
         return ExchangeBuilder.topicExchange(EXCHANGE).durable(true).build();
@@ -35,7 +38,7 @@ public class RabbitMQConfig {
     public Queue scoreQueue() {
         return QueueBuilder.durable(QUEUE_SCORE)
                 .withArgument("x-dead-letter-exchange", DLX)
-                .withArgument("x-dead-letter-routing-key", QUEUE_SCORE + ".dlq")
+                .withArgument("x-dead-letter-routing-key", QUEUE_SCORE_DLQ)
                 .withArgument("x-message-ttl", 300000)
                 .build();
     }
@@ -44,9 +47,20 @@ public class RabbitMQConfig {
     public Queue achievementQueue() {
         return QueueBuilder.durable(QUEUE_ACHIEVE)
                 .withArgument("x-dead-letter-exchange", DLX)
-                .withArgument("x-dead-letter-routing-key", QUEUE_ACHIEVE + ".dlq")
+                .withArgument("x-dead-letter-routing-key", QUEUE_ACHIEVE_DLQ)
                 .withArgument("x-message-ttl", 300000)
                 .build();
+    }
+
+    /** Colas de muertos: reciben lo que el consumidor rechaza (SB1-05-B). */
+    @Bean
+    public Queue scoreDlq() {
+        return QueueBuilder.durable(QUEUE_SCORE_DLQ).build();
+    }
+
+    @Bean
+    public Queue achievementDlq() {
+        return QueueBuilder.durable(QUEUE_ACHIEVE_DLQ).build();
     }
 
     @Bean
@@ -57,6 +71,16 @@ public class RabbitMQConfig {
     @Bean
     public Binding achievementBinding() {
         return BindingBuilder.bind(achievementQueue()).to(talkiEventsExchange()).with(ROUTING_ACHIEVE);
+    }
+
+    @Bean
+    public Binding scoreDlqBinding() {
+        return BindingBuilder.bind(scoreDlq()).to(deadLetterExchange()).with(QUEUE_SCORE_DLQ);
+    }
+
+    @Bean
+    public Binding achievementDlqBinding() {
+        return BindingBuilder.bind(achievementDlq()).to(deadLetterExchange()).with(QUEUE_ACHIEVE_DLQ);
     }
 
     @Bean
@@ -72,6 +96,9 @@ public class RabbitMQConfig {
         SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
         factory.setConnectionFactory(connectionFactory);
         factory.setMessageConverter(messageConverter());
+        // Sin requeue: un mensaje inválido se rechaza y el broker lo manda a la DLQ
+        // (evita loops infinitos de poison messages).
+        factory.setDefaultRequeueRejected(false);
         return factory;
     }
 }
