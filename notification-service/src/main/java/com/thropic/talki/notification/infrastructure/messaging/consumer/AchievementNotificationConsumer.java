@@ -1,5 +1,6 @@
 package com.thropic.talki.notification.infrastructure.messaging.consumer;
 
+import com.thropic.talki.notification.application.port.NotificationChannel;
 import com.thropic.talki.notification.domain.event.AchievementUnlockedEvent;
 import com.thropic.talki.notification.infrastructure.messaging.EventDeduplicator;
 import com.thropic.talki.notification.infrastructure.messaging.config.RabbitMQConfig;
@@ -14,9 +15,12 @@ public class AchievementNotificationConsumer {
     private static final Logger log = LoggerFactory.getLogger(AchievementNotificationConsumer.class);
 
     private final EventDeduplicator deduplicator;
+    private final NotificationChannel notificationChannel;
 
-    public AchievementNotificationConsumer(EventDeduplicator deduplicator) {
+    public AchievementNotificationConsumer(EventDeduplicator deduplicator,
+                                           NotificationChannel notificationChannel) {
         this.deduplicator = deduplicator;
+        this.notificationChannel = notificationChannel;
     }
 
     @RabbitListener(queues = RabbitMQConfig.QUEUE_ACHIEVE)
@@ -30,11 +34,10 @@ public class AchievementNotificationConsumer {
         log.info("[notification-service] Logro desbloqueado — userId={} achievement={}",
                 event.getUserId(), event.getAchievementName());
 
-        sendAchievementNotification(event.getUserId(), event.getAchievementName(), event.getDescription());
-    }
-
-    void sendAchievementNotification(String userId, String name, String description) {
-        log.info("[notification-service] PUSH → userId={} mensaje='¡Lograste {}! {}'",
-                userId, name, description);
+        notificationChannel.send(
+                event.getUserId(),
+                "¡Logro desbloqueado!",
+                "¡Lograste " + event.getAchievementName() + "! " + event.getDescription()
+        );
     }
 }
