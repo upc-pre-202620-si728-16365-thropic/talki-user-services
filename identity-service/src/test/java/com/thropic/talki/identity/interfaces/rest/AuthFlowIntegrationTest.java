@@ -1,7 +1,10 @@
 package com.thropic.talki.identity.interfaces.rest;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.thropic.talki.identity.domain.model.AppUser;
 import com.thropic.talki.identity.infrastructure.persistence.AppUserRepository;
+import com.thropic.talki.identity.infrastructure.persistence.JpaRefreshTokenRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,7 +13,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -34,6 +39,12 @@ class AuthFlowIntegrationTest {
     private AppUserRepository userRepository;
 
     @Autowired
+    private JpaRefreshTokenRepository refreshTokenRepository;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -44,6 +55,7 @@ class AuthFlowIntegrationTest {
     @BeforeEach
     void setUp() {
         userRepository.deleteAll();
+        refreshTokenRepository.deleteAll();
         loginAttemptService.reset(EMAIL); // el contador de intentos es compartido por el contexto
         userRepository.save(new AppUser(EMAIL, passwordEncoder.encode(PASSWORD), "ManuelTumi", "ciclos_6_10"));
     }
@@ -152,5 +164,100 @@ class AuthFlowIntegrationTest {
                 .andExpect(jsonPath("$.username").value("ManuelTumi"))
                 .andExpect(jsonPath("$.academicSegment").value("ciclos_6_10"))
                 .andExpect(jsonPath("$.role").value("STUDENT"));
+    }
+
+    // ---------- US28: refresh con rotación y logout ----------
+
+    private JsonNode login() throws Exception {
+        String response = mockMvc.perform(post("/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody(PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isString())
+                .andExpect(jsonPath("$.refreshToken").isString())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        return objectMapper.readTree(response);
+    }
+
+    private MvcResult postRefresh(String refreshToken) throws Exception {
+        return mockMvc.perform(post("/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\":\"" + refreshToken + "\"}"))
+                .andReturn();
+    }
+
+    @Test
+    void refresh_whenTokenIsValid_shouldRotate() throws Exception {
+        JsonNode login = login();
+
+        MvcResult result = postRefresh(login.get("refreshToken").asText());
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        JsonNode rotated = objectMapper.readTree(result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
+        assertThat(rotated.get("refreshToken").asText())
+                .isNotEqualTo(login.get("refreshToken").asText());
+        // El access token de la rotación es válido en /v1/users/me
+        // (la rotación solo afecta refresh tokens).
+        mockMvc.perform(get("/v1/users/me")
+                        .header("Authorization", "Bearer " + rotated.get("accessToken").asText()))
+                .andExpect(status().isOk());
+        // El token usado queda revocado: reusarlo falla con 401.
+        assertThat(postRefresh(login.get("refreshToken").asText()).getResponse().getStatus()).isEqualTo(401);
+    }
+
+    @Test
+    void refresh_whenRotatedTokenIsReused_shouldReturn401AndRevokeFamily() throws Exception {
+        JsonNode login = login();
+        String original = login.get("refreshToken").asText();
+
+        // Primera rotación legítima.
+        MvcResult rotation = postRefresh(original);
+        JsonNode rotated = objectMapper.readTree(rotation.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
+        String replacement = rotated.get("refreshToken").asText();
+
+        // Reuso del token ya rotado → 401 y revocación de toda la familia.
+        assertThat(postRefresh(original).getResponse().getStatus()).isEqualTo(401);
+        assertThat(postRefresh(replacement).getResponse().getStatus()).isEqualTo(401);
+    }
+
+    @Test
+    void logout_shouldDenyAccessTokenAndRevokeRefresh() throws Exception {
+        JsonNode login = login();
+        String accessToken = login.get("accessToken").asText();
+        String refreshToken = login.get("refreshToken").asText();
+
+        mockMvc.perform(post("/v1/auth/logout")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\":\"" + refreshToken + "\"}"))
+                .andExpect(status().isNoContent());
+
+        // El access token anterior ya no sirve en /v1/users/me.
+        mockMvc.perform(get("/v1/users/me")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isUnauthorized());
+
+        // El refresh revocado ya no renueva.
+        assertThat(postRefresh(refreshToken).getResponse().getStatus()).isEqualTo(401);
+    }
+
+    @Test
+    void logout_repeated_shouldStayIdempotent() throws Exception {
+        JsonNode login = login();
+        String body = "{\"refreshToken\":\"" + login.get("refreshToken").asText() + "\"}";
+
+        mockMvc.perform(post("/v1/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isNoContent());
+
+        // Repetir logout con el mismo refresh no falla.
+        mockMvc.perform(post("/v1/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void refresh_whenTokenUnknown_shouldReturn401() throws Exception {
+        assertThat(postRefresh("no-existe").getResponse().getStatus()).isEqualTo(401);
     }
 }

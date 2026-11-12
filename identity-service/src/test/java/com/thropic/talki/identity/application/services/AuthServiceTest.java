@@ -1,17 +1,22 @@
 package com.thropic.talki.identity.application.services;
 
+import com.thropic.talki.identity.domain.exception.InvalidCredentialsException;
 import com.thropic.talki.identity.domain.model.AppUser;
+import com.thropic.talki.identity.domain.model.RefreshToken;
 import com.thropic.talki.identity.infrastructure.persistence.AppUserRepository;
 import com.thropic.talki.identity.infrastructure.security.JwtTokenProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
@@ -36,10 +41,19 @@ class AuthServiceTest {
     @Mock
     private com.thropic.talki.identity.application.services.LoginAttemptService loginAttemptService;
 
-    @InjectMocks
+    @Mock
+    private com.thropic.talki.identity.application.ports.RefreshTokenRepository refreshTokenRepository;
+
+    @Mock
+    private com.thropic.talki.identity.infrastructure.security.TokenDenylist tokenDenylist;
+
     private AuthService authService;
 
+    private static final long REFRESH_TTL_DAYS = 7;
+
     private AppUser sampleUser;
+
+    private static final String INVALID_CREDENTIALS_MSG = "Credenciales inválidas";
 
     @BeforeEach
     void setUp() {
@@ -47,6 +61,10 @@ class AuthServiceTest {
         // ID lo asigna JPA en producción al persistir; en unit test lo seteamos
         // por reflection para que AuthService.login() pueda generar el JWT subject.
         ReflectionTestUtils.setField(sampleUser, "id", 1L);
+        // Constructor manual: @InjectMocks no maneja el parámetro primitivo del TTL.
+        authService = new AuthService(userRepository, passwordEncoder, jwtTokenProvider,
+                userRegisteredEventPublisher, loginAttemptService, refreshTokenRepository,
+                tokenDenylist, REFRESH_TTL_DAYS);
     }
 
     @Test
@@ -81,14 +99,20 @@ class AuthServiceTest {
     }
 
     @Test
-    void login_whenCredentialsAreValid_shouldReturnToken() {
+    void login_whenCredentialsAreValid_shouldReturnBothTokens() {
         when(userRepository.findByEmail("manuel@upc.edu.pe")).thenReturn(Optional.of(sampleUser));
         when(passwordEncoder.matches("password123", "hashed_password")).thenReturn(true);
-        when(jwtTokenProvider.generateToken(anyString(), anyString())).thenReturn("jwt-token-abc");
+        when(jwtTokenProvider.generateToken(anyString(), anyString())).thenReturn("jwt-access-abc");
 
-        String token = authService.login("manuel@upc.edu.pe", "password123");
+        AuthService.LoginResult result = authService.login("manuel@upc.edu.pe", "password123");
 
-        assertThat(token).isEqualTo("jwt-token-abc");
+        assertThat(result.accessToken()).isEqualTo("jwt-access-abc");
+        assertThat(result.refreshToken()).isNotBlank();
+        // Se persiste solo el hash SHA-256, nunca el valor crudo.
+        verify(refreshTokenRepository).save(argThat(t ->
+                t.getUserId().equals(1L)
+                && !t.getTokenHash().equals(result.refreshToken())
+                && !t.isRevoked()));
     }
 
     @Test
@@ -123,6 +147,107 @@ class AuthServiceTest {
 
         assertThat(result.getPasswordHash()).isEqualTo("new_hash");
         verify(userRegisteredEventPublisher, never()).publish(any());
+    }
+
+    // ---------- US28: refresh con rotación y logout ----------
+
+    private RefreshToken activeRefresh(String rawHash) {
+        return new RefreshToken(1L, rawHash, Instant.now().plus(Duration.ofDays(7)));
+    }
+
+    @Test
+    void refresh_whenTokenIsValid_shouldRotateAndReturnNewPair() {
+        RefreshToken stored = activeRefresh(sha256Of("raw-opaco"));
+        when(refreshTokenRepository.findByTokenHash(sha256Of("raw-opaco"))).thenReturn(Optional.of(stored));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(sampleUser));
+        when(jwtTokenProvider.generateToken(anyString(), anyString())).thenReturn("jwt-nuevo");
+
+        AuthService.LoginResult result = authService.refresh("raw-opaco");
+
+        assertThat(result.accessToken()).isEqualTo("jwt-nuevo");
+        assertThat(result.refreshToken()).isNotBlank();
+        assertThat(stored.isRevoked()).isTrue();
+        assertThat(stored.getReplacedByHash()).isEqualTo(sha256Of(result.refreshToken()));
+    }
+
+    @Test
+    void refresh_whenTokenIsUnknown_shouldThrow401() {
+        when(refreshTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.refresh("desconocido"))
+                .isInstanceOf(InvalidCredentialsException.class)
+                .hasMessage(INVALID_CREDENTIALS_MSG);
+    }
+
+    @Test
+    void refresh_whenTokenIsRevoked_shouldThrow401() {
+        RefreshToken revocado = activeRefresh(sha256Of("raw-revocado"));
+        revocado.setRevoked(true);
+        when(refreshTokenRepository.findByTokenHash(sha256Of("raw-revocado"))).thenReturn(Optional.of(revocado));
+
+        assertThatThrownBy(() -> authService.refresh("raw-revocado"))
+                .isInstanceOf(InvalidCredentialsException.class);
+    }
+
+    @Test
+    void refresh_whenTokenIsExpired_shouldThrow401() {
+        RefreshToken vencido = new RefreshToken(1L, sha256Of("raw-vencido"),
+                Instant.now().minus(Duration.ofHours(1)));
+        when(refreshTokenRepository.findByTokenHash(sha256Of("raw-vencido"))).thenReturn(Optional.of(vencido));
+
+        assertThatThrownBy(() -> authService.refresh("raw-vencido"))
+                .isInstanceOf(InvalidCredentialsException.class);
+        verify(refreshTokenRepository, never()).save(any());
+    }
+
+    @Test
+    void refresh_whenRotatedTokenIsReused_shouldRevokeFamilyAndThrow() {
+        RefreshToken rotado = activeRefresh(sha256Of("raw-reusado"));
+        rotado.setRevoked(true);
+        rotado.setReplacedByHash("hash-reemplazo");
+        when(refreshTokenRepository.findByTokenHash(sha256Of("raw-reusado"))).thenReturn(Optional.of(rotado));
+
+        assertThatThrownBy(() -> authService.refresh("raw-reusado"))
+                .isInstanceOf(InvalidCredentialsException.class);
+
+        // La familia entera (todos los activos del usuario) queda revocada.
+        verify(refreshTokenRepository).revokeAllActiveByUserId(1L);
+    }
+
+    @Test
+    void logout_shouldRevokeRefreshAndDenylistAccessToken() {
+        RefreshToken stored = activeRefresh(sha256Of("raw-logout"));
+        when(refreshTokenRepository.findByTokenHash(sha256Of("raw-logout"))).thenReturn(Optional.of(stored));
+        when(jwtTokenProvider.validateToken("access-vigente")).thenReturn(true);
+        when(jwtTokenProvider.getExpirationEpochMs("access-vigente")).thenReturn(System.currentTimeMillis() + 60_000);
+
+        authService.logout("raw-logout", "access-vigente");
+
+        assertThat(stored.isRevoked()).isTrue();
+        verify(tokenDenylist).revoke(eq("access-vigente"), anyLong());
+    }
+
+    @Test
+    void logout_shouldBeIdempotent_whenTokenUnknownOrRepeated() {
+        when(refreshTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.empty());
+
+        assertThatCode(() -> authService.logout("desconocido", null))
+                .doesNotThrowAnyException();
+        verify(refreshTokenRepository, never()).save(any());
+    }
+
+    private static String sha256Of(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hashed = digest.digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder();
+            for (byte b : hashed) {
+                hex.append(String.format("%02x", b));
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @Test
