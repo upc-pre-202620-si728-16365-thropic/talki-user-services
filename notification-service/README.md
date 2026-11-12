@@ -11,6 +11,7 @@ Consumidor de eventos de Talki (puerto 8091). Java 17, Spring Boot, RabbitMQ.
 | `notification.user-registered` | `user.registered` | Usuario registrado |
 | `notification.score-ready.dlq` | (DLX) | Muertos de score-ready |
 | `notification.achievement-ready.dlq` | (DLX) | Muertos de achievement-ready |
+| `notification.user-registered.dlq` | (DLX) | Muertos de user-registered |
 
 - Exchange: `talki.events` (topic); DLX: `talki.dlx` (direct).
 - `defaultRequeueRejected=false`: un mensaje inválido se rechaza y el broker lo envía a su DLQ.

@@ -21,8 +21,12 @@ public class RabbitMQConfig {
     public static final String QUEUE_ACHIEVE   = "notification.achievement-ready";
     public static final String ROUTING_ACHIEVE = "achievement.unlocked";
 
+    public static final String QUEUE_USER_REG   = "notification.user-registered";
+    public static final String ROUTING_USER_REG = "user.registered";
+
     public static final String QUEUE_SCORE_DLQ     = QUEUE_SCORE + ".dlq";
     public static final String QUEUE_ACHIEVE_DLQ   = QUEUE_ACHIEVE + ".dlq";
+    public static final String QUEUE_USER_REG_DLQ  = QUEUE_USER_REG + ".dlq";
 
     @Bean
     public TopicExchange talkiEventsExchange() {
@@ -52,6 +56,14 @@ public class RabbitMQConfig {
                 .build();
     }
 
+    @Bean
+    public Queue userRegisteredQueue() {
+        return QueueBuilder.durable(QUEUE_USER_REG)
+                .withArgument("x-dead-letter-exchange", DLX)
+                .withArgument("x-dead-letter-routing-key", QUEUE_USER_REG_DLQ)
+                .build();
+    }
+
     /** Colas de muertos: reciben lo que el consumidor rechaza (SB1-05-B). */
     @Bean
     public Queue scoreDlq() {
@@ -64,6 +76,11 @@ public class RabbitMQConfig {
     }
 
     @Bean
+    public Queue userRegisteredDlq() {
+        return QueueBuilder.durable(QUEUE_USER_REG_DLQ).build();
+    }
+
+    @Bean
     public Binding scoreBinding() {
         return BindingBuilder.bind(scoreQueue()).to(talkiEventsExchange()).with(ROUTING_SCORE);
     }
@@ -71,6 +88,16 @@ public class RabbitMQConfig {
     @Bean
     public Binding achievementBinding() {
         return BindingBuilder.bind(achievementQueue()).to(talkiEventsExchange()).with(ROUTING_ACHIEVE);
+    }
+
+    @Bean
+    public Binding userRegisteredBinding() {
+        return BindingBuilder.bind(userRegisteredQueue()).to(talkiEventsExchange()).with(ROUTING_USER_REG);
+    }
+
+    @Bean
+    public Binding userRegisteredDlqBinding() {
+        return BindingBuilder.bind(userRegisteredDlq()).to(deadLetterExchange()).with(QUEUE_USER_REG_DLQ);
     }
 
     @Bean
