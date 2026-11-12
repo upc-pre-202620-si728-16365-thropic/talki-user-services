@@ -10,13 +10,13 @@ class JwtTokenProviderTest {
     // Secret de prueba de 64+ chars para HS256 (requisito mínimo 256 bits).
     private static final String TEST_SECRET =
             "talki-test-jwt-secret-must-be-at-least-256-bits-long-and-this-is-it-yes";
-    private static final long ONE_HOUR_MS = 60L * 60 * 1000;
+    private static final long ONE_HOUR_MINUTES = 60L;
 
     private JwtTokenProvider provider;
 
     @BeforeEach
     void setUp() {
-        provider = new JwtTokenProvider(TEST_SECRET, ONE_HOUR_MS);
+        provider = new JwtTokenProvider(TEST_SECRET, ONE_HOUR_MINUTES);
     }
 
     @Test
@@ -52,7 +52,7 @@ class JwtTokenProviderTest {
     @Test
     void validateToken_whenTokenSignedByDifferentSecret_shouldReturnFalse() {
         String otherSecret = "otro-secret-distinto-que-tambien-mide-256-bits-de-largo-suficiente";
-        JwtTokenProvider attacker = new JwtTokenProvider(otherSecret, ONE_HOUR_MS);
+        JwtTokenProvider attacker = new JwtTokenProvider(otherSecret, ONE_HOUR_MINUTES);
         String forged = attacker.generateToken("intruso@x.com", "999");
 
         assertThat(provider.validateToken(forged)).isFalse();
@@ -60,8 +60,8 @@ class JwtTokenProviderTest {
 
     @Test
     void validateToken_whenTokenIsExpired_shouldReturnFalse() throws InterruptedException {
-        // Expira en 1ms para forzar expiración inmediata.
-        JwtTokenProvider shortLived = new JwtTokenProvider(TEST_SECRET, 1L);
+        // Expira en 0 minutos para forzar expiración inmediata.
+        JwtTokenProvider shortLived = new JwtTokenProvider(TEST_SECRET, 0L);
         String token = shortLived.generateToken("alejo@upc.edu.pe", "42");
         Thread.sleep(10);
 
@@ -87,5 +87,26 @@ class JwtTokenProviderTest {
     void getEmailFromToken_whenTokenIsInvalid_shouldThrow() {
         assertThatThrownBy(() -> provider.getEmailFromToken("garbage"))
                 .isInstanceOf(io.jsonwebtoken.JwtException.class);
+    }
+
+    @Test
+    void getExpirationEpochMs_shouldMatchConfiguredTtl() {
+        long before = System.currentTimeMillis();
+        String token = provider.generateToken("alejo@upc.edu.pe", "42");
+
+        long exp = provider.getExpirationEpochMs(token);
+
+        assertThat(exp).isBetween(before + 60 * 60_000L - 5_000, System.currentTimeMillis() + 60 * 60_000L + 5_000);
+    }
+
+    @Test
+    void defaultTtl_is15Minutes_whenConfiguredSo() {
+        JwtTokenProvider shortLived = new JwtTokenProvider(TEST_SECRET, 15L);
+        long before = System.currentTimeMillis();
+        String token = shortLived.generateToken("a@b.com", "1");
+
+        long exp = shortLived.getExpirationEpochMs(token);
+
+        assertThat(exp - before).isCloseTo(15 * 60_000L, org.assertj.core.data.Offset.offset(5_000L));
     }
 }

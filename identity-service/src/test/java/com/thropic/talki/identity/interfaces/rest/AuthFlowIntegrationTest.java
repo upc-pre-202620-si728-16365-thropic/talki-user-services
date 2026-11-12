@@ -11,6 +11,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -36,8 +37,10 @@ class AuthFlowIntegrationTest {
     private PasswordEncoder passwordEncoder;
 
     @Autowired
-    private com.thropic.talki.identity.application.services.LoginAttemptService loginAttemptService;
+    private com.thropic.talki.identity.infrastructure.security.JwtTokenProvider jwtTokenProvider;
 
+    @Autowired
+    private com.thropic.talki.identity.application.services.LoginAttemptService loginAttemptService;
     @BeforeEach
     void setUp() {
         userRepository.deleteAll();
@@ -121,5 +124,33 @@ class AuthFlowIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(
                         "El segmento académico solo admite los valores ciclos_1_5 o ciclos_6_10"));
+    }
+
+    // ---------- US23: GET /v1/users/me protegido por filtro JWT ----------
+
+    @Test
+    void me_withoutToken_shouldReturn401() throws Exception {
+        mockMvc.perform(get("/v1/users/me"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void me_withInvalidSignatureToken_shouldReturn401() throws Exception {
+        mockMvc.perform(get("/v1/users/me")
+                        .header("Authorization", "Bearer not-a-real-jwt"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void me_withValidToken_shouldReturn200AndUserData() throws Exception {
+        String token = jwtTokenProvider.generateToken(EMAIL, "1");
+
+        mockMvc.perform(get("/v1/users/me")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value(EMAIL))
+                .andExpect(jsonPath("$.username").value("ManuelTumi"))
+                .andExpect(jsonPath("$.academicSegment").value("ciclos_6_10"))
+                .andExpect(jsonPath("$.role").value("STUDENT"));
     }
 }

@@ -24,7 +24,7 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET:talki-secret-key-for-demo-purposes-only-32chars}
-  expiration-ms: 86400000
+  access-ttl-minutes: ${JWT_ACCESS_TTL_MINUTES:15}
 
 springdoc:
   api-docs:

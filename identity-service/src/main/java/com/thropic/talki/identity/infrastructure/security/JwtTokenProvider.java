@@ -15,9 +15,9 @@ public class JwtTokenProvider {
     private final long expirationMs;
 
     public JwtTokenProvider(@Value("${jwt.secret}") String secret,
-                            @Value("${jwt.expiration-ms}") long expirationMs) {
+                            @Value("${jwt.access-ttl-minutes:15}") long accessTtlMinutes) {
         this.signingKey = Keys.hmacShaKeyFor(secret.getBytes());
-        this.expirationMs = expirationMs;
+        this.expirationMs = accessTtlMinutes * 60_000L;
     }
 
     public String generateToken(String email, String userId) {
@@ -37,6 +37,17 @@ public class JwtTokenProvider {
                 .parseClaimsJws(token)
                 .getBody()
                 .getSubject();
+    }
+
+    /** Época (ms) en que expira el token; lo usa la denylist de logout. */
+    public long getExpirationEpochMs(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(signingKey)
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .getExpiration()
+                .getTime();
     }
 
     public boolean validateToken(String token) {

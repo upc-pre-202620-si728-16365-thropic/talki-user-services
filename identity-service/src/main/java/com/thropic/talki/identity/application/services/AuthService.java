@@ -18,7 +18,9 @@ import java.util.regex.Pattern;
 @Service
 public class AuthService {
 
-    /** Mínimo 8 caracteres, al menos una letra y un número. */
+    /**
+     * Regla de contraseña: mínimo 8 caracteres, al menos una letra y un número.
+     */
     private static final Pattern PASSWORD_RULE = Pattern.compile("^(?=.*[A-Za-z])(?=.*\\d).{8,}$");
 
     private static final Set<String> VALID_SEGMENTS = Set.of("ciclos_1_5", "ciclos_6_10");
@@ -93,5 +95,10 @@ public class AuthService {
         }
         loginAttemptService.reset(email);
         return jwtTokenProvider.generateToken(email, user.getId().toString());
+    }
+
+    public AppUser getByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(InvalidCredentialsException::new);
     }
 }
