@@ -1,8 +1,10 @@
 package com.thropic.talki.identity.interfaces.rest;
 
 import com.thropic.talki.identity.domain.exception.DuplicateEmailException;
+import com.thropic.talki.identity.domain.exception.InvalidAcademicSegmentException;
 import com.thropic.talki.identity.domain.exception.InvalidCredentialsException;
 import com.thropic.talki.identity.domain.exception.InvalidPasswordException;
+import com.thropic.talki.identity.domain.exception.TooManyLoginAttemptsException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -31,6 +33,23 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidPasswordException.class)
     public ResponseEntity<Map<String, Object>> handleInvalidPassword(InvalidPasswordException e) {
         return build(HttpStatus.BAD_REQUEST, e.getMessage());
+    }
+
+    @ExceptionHandler(InvalidAcademicSegmentException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidAcademicSegment(InvalidAcademicSegmentException e) {
+        return build(HttpStatus.BAD_REQUEST, e.getMessage());
+    }
+
+    @ExceptionHandler(TooManyLoginAttemptsException.class)
+    public ResponseEntity<Map<String, Object>> handleTooManyAttempts(TooManyLoginAttemptsException e) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header("Retry-After", String.valueOf(e.getRetryAfterSeconds()))
+                .body(Map.of(
+                        "status", HttpStatus.TOO_MANY_REQUESTS.value(),
+                        "error", HttpStatus.TOO_MANY_REQUESTS.getReasonPhrase(),
+                        "message", e.getMessage(),
+                        "retryAfterSeconds", e.getRetryAfterSeconds()
+                ));
     }
 
     private ResponseEntity<Map<String, Object>> build(HttpStatus status, String message) {

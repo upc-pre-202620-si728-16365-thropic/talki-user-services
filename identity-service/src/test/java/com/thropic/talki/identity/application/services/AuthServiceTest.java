@@ -138,8 +138,43 @@ class AuthServiceTest {
         AppUser saved = new AppUser("a@b.com", "hash", "Gael", "ciclos_1_5");
         when(userRepository.save(any())).thenReturn(saved);
 
-        AppUser result = authService.register("a@b.com", "pass", "Gael", "ciclos_1_5");
+        AppUser result = authService.register("a@b.com", "password123", "Gael", "ciclos_1_5");
 
         assertThat(result.getAcademicSegment()).isEqualTo("ciclos_1_5");
+    }
+
+    @Test
+    void register_whenPasswordTooShort_shouldThrowInvalidPassword() {
+        assertThatThrownBy(() -> authService.register("a@b.com", "ab1", "Gael", "ciclos_6_10"))
+                .isInstanceOf(com.thropic.talki.identity.domain.exception.InvalidPasswordException.class)
+                .hasMessageContaining("8 caracteres");
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void register_whenPasswordHasNoNumber_shouldThrowInvalidPassword() {
+        assertThatThrownBy(() -> authService.register("a@b.com", "sololetras", "Gael", "ciclos_6_10"))
+                .isInstanceOf(com.thropic.talki.identity.domain.exception.InvalidPasswordException.class);
+    }
+
+    @Test
+    void register_whenPasswordHasNoLetter_shouldThrowInvalidPassword() {
+        assertThatThrownBy(() -> authService.register("a@b.com", "12345678", "Gael", "ciclos_6_10"))
+                .isInstanceOf(com.thropic.talki.identity.domain.exception.InvalidPasswordException.class);
+    }
+
+    @Test
+    void register_whenAcademicSegmentIsUnknown_shouldThrowInvalidSegment() {
+        assertThatThrownBy(() -> authService.register("a@b.com", "password123", "Gael", "posgrado"))
+                .isInstanceOf(com.thropic.talki.identity.domain.exception.InvalidAcademicSegmentException.class)
+                .hasMessageContaining("ciclos_1_5")
+                .hasMessageContaining("ciclos_6_10");
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void register_whenAcademicSegmentIsNull_shouldThrowInvalidSegment() {
+        assertThatThrownBy(() -> authService.register("a@b.com", "password123", "Gael", null))
+                .isInstanceOf(com.thropic.talki.identity.domain.exception.InvalidAcademicSegmentException.class);
     }
 }
