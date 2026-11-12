@@ -27,10 +27,21 @@ public class RabbitMQConfig {
     public static final String QUEUE_VOICE_CONSENT_WITHDRAWN   = "notification.voice-consent-withdrawn";
     public static final String ROUTING_VOICE_CONSENT_WITHDRAWN = "voice.consent.withdrawn"; // US33, PROPUESTA
 
+    // Colas del ciclo de vida de la cuenta (routing keys PROPUESTAS pendientes de ratificación).
+    public static final String QUEUE_EMAIL_VERIFICATION   = "notification.email-verification-requested";
+    public static final String ROUTING_EMAIL_VERIFICATION = "user.email-verification-requested";
+    public static final String QUEUE_PASSWORD_RESET       = "notification.password-reset-requested";
+    public static final String ROUTING_PASSWORD_RESET     = "user.password-reset-requested";
+    public static final String QUEUE_PROFILE_UPDATED      = "notification.profile-updated";
+    public static final String ROUTING_PROFILE_UPDATED    = "user.profile-updated";
+
     public static final String QUEUE_SCORE_DLQ     = QUEUE_SCORE + ".dlq";
     public static final String QUEUE_ACHIEVE_DLQ   = QUEUE_ACHIEVE + ".dlq";
     public static final String QUEUE_USER_REG_DLQ  = QUEUE_USER_REG + ".dlq";
     public static final String QUEUE_VOICE_CONSENT_WITHDRAWN_DLQ = QUEUE_VOICE_CONSENT_WITHDRAWN + ".dlq";
+    public static final String QUEUE_EMAIL_VERIFICATION_DLQ = QUEUE_EMAIL_VERIFICATION + ".dlq";
+    public static final String QUEUE_PASSWORD_RESET_DLQ     = QUEUE_PASSWORD_RESET + ".dlq";
+    public static final String QUEUE_PROFILE_UPDATED_DLQ    = QUEUE_PROFILE_UPDATED + ".dlq";
 
     @Bean
     public TopicExchange talkiEventsExchange() {
@@ -76,6 +87,30 @@ public class RabbitMQConfig {
                 .build();
     }
 
+    @Bean
+    public Queue emailVerificationQueue() {
+        return QueueBuilder.durable(QUEUE_EMAIL_VERIFICATION)
+                .withArgument("x-dead-letter-exchange", DLX)
+                .withArgument("x-dead-letter-routing-key", QUEUE_EMAIL_VERIFICATION_DLQ)
+                .build();
+    }
+
+    @Bean
+    public Queue passwordResetQueue() {
+        return QueueBuilder.durable(QUEUE_PASSWORD_RESET)
+                .withArgument("x-dead-letter-exchange", DLX)
+                .withArgument("x-dead-letter-routing-key", QUEUE_PASSWORD_RESET_DLQ)
+                .build();
+    }
+
+    @Bean
+    public Queue profileUpdatedQueue() {
+        return QueueBuilder.durable(QUEUE_PROFILE_UPDATED)
+                .withArgument("x-dead-letter-exchange", DLX)
+                .withArgument("x-dead-letter-routing-key", QUEUE_PROFILE_UPDATED_DLQ)
+                .build();
+    }
+
     /** Colas de muertos: reciben lo que el consumidor rechaza (SB1-05-B). */
     @Bean
     public Queue scoreDlq() {
@@ -95,6 +130,21 @@ public class RabbitMQConfig {
     @Bean
     public Queue voiceConsentWithdrawnDlq() {
         return QueueBuilder.durable(QUEUE_VOICE_CONSENT_WITHDRAWN_DLQ).build();
+    }
+
+    @Bean
+    public Queue emailVerificationDlq() {
+        return QueueBuilder.durable(QUEUE_EMAIL_VERIFICATION_DLQ).build();
+    }
+
+    @Bean
+    public Queue passwordResetDlq() {
+        return QueueBuilder.durable(QUEUE_PASSWORD_RESET_DLQ).build();
+    }
+
+    @Bean
+    public Queue profileUpdatedDlq() {
+        return QueueBuilder.durable(QUEUE_PROFILE_UPDATED_DLQ).build();
     }
 
     @Bean
@@ -118,6 +168,21 @@ public class RabbitMQConfig {
     }
 
     @Bean
+    public Binding emailVerificationBinding() {
+        return BindingBuilder.bind(emailVerificationQueue()).to(talkiEventsExchange()).with(ROUTING_EMAIL_VERIFICATION);
+    }
+
+    @Bean
+    public Binding passwordResetBinding() {
+        return BindingBuilder.bind(passwordResetQueue()).to(talkiEventsExchange()).with(ROUTING_PASSWORD_RESET);
+    }
+
+    @Bean
+    public Binding profileUpdatedBinding() {
+        return BindingBuilder.bind(profileUpdatedQueue()).to(talkiEventsExchange()).with(ROUTING_PROFILE_UPDATED);
+    }
+
+    @Bean
     public Binding userRegisteredDlqBinding() {
         return BindingBuilder.bind(userRegisteredDlq()).to(deadLetterExchange()).with(QUEUE_USER_REG_DLQ);
     }
@@ -125,6 +190,21 @@ public class RabbitMQConfig {
     @Bean
     public Binding voiceConsentWithdrawnDlqBinding() {
         return BindingBuilder.bind(voiceConsentWithdrawnDlq()).to(deadLetterExchange()).with(QUEUE_VOICE_CONSENT_WITHDRAWN_DLQ);
+    }
+
+    @Bean
+    public Binding emailVerificationDlqBinding() {
+        return BindingBuilder.bind(emailVerificationDlq()).to(deadLetterExchange()).with(QUEUE_EMAIL_VERIFICATION_DLQ);
+    }
+
+    @Bean
+    public Binding passwordResetDlqBinding() {
+        return BindingBuilder.bind(passwordResetDlq()).to(deadLetterExchange()).with(QUEUE_PASSWORD_RESET_DLQ);
+    }
+
+    @Bean
+    public Binding profileUpdatedDlqBinding() {
+        return BindingBuilder.bind(profileUpdatedDlq()).to(deadLetterExchange()).with(QUEUE_PROFILE_UPDATED_DLQ);
     }
 
     @Bean

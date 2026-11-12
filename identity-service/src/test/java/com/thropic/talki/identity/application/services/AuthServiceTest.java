@@ -47,6 +47,9 @@ class AuthServiceTest {
     @Mock
     private com.thropic.talki.identity.infrastructure.security.TokenDenylist tokenDenylist;
 
+    @Mock
+    private AccountService accountService;
+
     private AuthService authService;
 
     private static final long REFRESH_TTL_DAYS = 7;
@@ -64,7 +67,7 @@ class AuthServiceTest {
         // Constructor manual: @InjectMocks no maneja el parámetro primitivo del TTL.
         authService = new AuthService(userRepository, passwordEncoder, jwtTokenProvider,
                 userRegisteredEventPublisher, loginAttemptService, refreshTokenRepository,
-                tokenDenylist, REFRESH_TTL_DAYS);
+                tokenDenylist, accountService, REFRESH_TTL_DAYS);
     }
 
     @Test

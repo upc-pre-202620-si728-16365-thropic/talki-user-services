@@ -22,14 +22,21 @@ public class LoginAttemptService {
     static final Duration WINDOW = Duration.ofMinutes(15);
 
     private final Duration window;
+    private final int maxAttempts;
     private final Map<String, Deque<Long>> attemptsByEmail = new ConcurrentHashMap<>();
 
     public LoginAttemptService() {
-        this(WINDOW);
+        this(MAX_ATTEMPTS, WINDOW);
     }
 
     /** Visibilidad de paquete para tests: ventana corta sin esperar 15 minutos. */
     LoginAttemptService(Duration window) {
+        this(MAX_ATTEMPTS, window);
+    }
+
+    /** Límite y ventana configurables: mismo patrón para resend/forgot-password. */
+    public LoginAttemptService(int maxAttempts, Duration window) {
+        this.maxAttempts = maxAttempts;
         this.window = window;
     }
 
@@ -41,7 +48,7 @@ public class LoginAttemptService {
         long now = System.currentTimeMillis();
         synchronized (attempts) {
             attempts.removeIf(t -> now - t > window.toMillis());
-            if (attempts.size() >= MAX_ATTEMPTS) {
+            if (attempts.size() >= maxAttempts) {
                 long oldest = attempts.peekFirst();
                 long retryAfterSeconds = Math.max(1,
                         (window.toMillis() - (now - oldest) + 999) / 1000);
@@ -56,7 +63,7 @@ public class LoginAttemptService {
         synchronized (attempts) {
             attempts.removeIf(t -> now - t > window.toMillis());
             attempts.addLast(now);
-            while (attempts.size() > MAX_ATTEMPTS) {
+            while (attempts.size() > maxAttempts) {
                 attempts.pollFirst();
             }
         }

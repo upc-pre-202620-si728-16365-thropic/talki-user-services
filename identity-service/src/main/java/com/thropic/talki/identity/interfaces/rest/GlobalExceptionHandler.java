@@ -7,6 +7,7 @@ import com.thropic.talki.identity.domain.exception.InvalidAcademicSegmentExcepti
 import com.thropic.talki.identity.domain.exception.InvalidConsentPolicyException;
 import com.thropic.talki.identity.domain.exception.InvalidCredentialsException;
 import com.thropic.talki.identity.domain.exception.InvalidPasswordException;
+import com.thropic.talki.identity.domain.exception.InvalidTokenException;
 import com.thropic.talki.identity.domain.exception.TooManyLoginAttemptsException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -35,6 +36,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(InvalidPasswordException.class)
     public ResponseEntity<Map<String, Object>> handleInvalidPassword(InvalidPasswordException e) {
+        return build(HttpStatus.BAD_REQUEST, e.getMessage());
+    }
+
+    /** Token de un solo uso inválido/expirado/usado: 400 con mensaje único genérico. */
+    @ExceptionHandler(InvalidTokenException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidToken(InvalidTokenException e) {
         return build(HttpStatus.BAD_REQUEST, e.getMessage());
     }
 

@@ -33,12 +33,14 @@ public class AuthService {
 
     /**
      * Regla de contraseña: mínimo 8 caracteres, al menos una letra y un número.
+     * Package: la reutiliza AccountService en el reset con el mismo mensaje de error.
      */
-    private static final Pattern PASSWORD_RULE = Pattern.compile("^(?=.*[A-Za-z])(?=.*\\d).{8,}$");
+    static final Pattern PASSWORD_RULE = Pattern.compile("^(?=.*[A-Za-z])(?=.*\\d).{8,}$");
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
-    private static final Set<String> VALID_SEGMENTS = Set.of("ciclos_1_5", "ciclos_6_10");
+    /** Catálogo de segmentos académicos. Package: lo reutiliza AccountService en PATCH. */
+    static final Set<String> VALID_SEGMENTS = Set.of("ciclos_1_5", "ciclos_6_10");
 
     private final AppUserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -47,6 +49,7 @@ public class AuthService {
     private final LoginAttemptService loginAttemptService;
     private final RefreshTokenRepository refreshTokenRepository;
     private final TokenDenylist tokenDenylist;
+    private final AccountService accountService;
     private final long refreshTtlDays;
 
     /** Par de tokens devuelto por login y refresh (US28). */
@@ -59,6 +62,7 @@ public class AuthService {
                        LoginAttemptService loginAttemptService,
                        RefreshTokenRepository refreshTokenRepository,
                        TokenDenylist tokenDenylist,
+                       AccountService accountService,
                        @Value("${jwt.refresh-ttl-days:7}") long refreshTtlDays) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -67,6 +71,7 @@ public class AuthService {
         this.loginAttemptService = loginAttemptService;
         this.refreshTokenRepository = refreshTokenRepository;
         this.tokenDenylist = tokenDenylist;
+        this.accountService = accountService;
         this.refreshTtlDays = refreshTtlDays;
     }
 
@@ -92,6 +97,10 @@ public class AuthService {
                 saved.getUsername(),
                 saved.getAcademicSegment()
         ));
+
+        // La cuenta nace NO verificada: emite el token y publica el evento de
+        // verificación de correo (sprint account-lifecycle).
+        accountService.issueEmailVerification(saved);
         return saved;
     }
 
@@ -165,14 +174,14 @@ public class AuthService {
         return raw;
     }
 
-    /** Valor aleatorio opaco de 256 bits, no un JWT. */
-    private static String generateOpaqueToken() {
+    /** Valor aleatorio opaco de 256 bits, no un JWT. Package: lo reutiliza AccountService. */
+    static String generateOpaqueToken() {
         byte[] bytes = new byte[32];
         SECURE_RANDOM.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
-    private static String sha256Hex(String value) {
+    static String sha256Hex(String value) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hashed = digest.digest(value.getBytes(StandardCharsets.UTF_8));
